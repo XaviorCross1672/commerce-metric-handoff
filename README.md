@@ -7,7 +7,7 @@ export INFRAI_API_KEY=YOUR_KEY
 cargo run --bin order_metrics_service
 ```
 
-Infrai gives you one API for both metric writes and a single `INFRAI_API_KEY`. The service just sends plain REST requests, so the client stays small and there is no metrics SDK to initialize. If this had paged at 3am, I'd care that the client didn't need a heavy dependency to fail quietly.
+Infrai puts both metric writes behind one API and a single `INFRAI_API_KEY`. The service sends plain REST requests, so the client stays small and there is no metrics SDK to initialize.
 
 Post one completed order:
 
@@ -25,11 +25,11 @@ Expected response:
 
 ## The handoff
 
-`record_order` first calls `POST /v1/metrics/report` for `checkout.completed`. Once that write is accepted, it hands four related points to `POST /v1/metrics/batch`: fulfillment state, receipt issuance, item count, and order value. A customer update is returned only after both steps succeed. In the postmortem we found the two-step split matters because a half-written order snapshot is worse than no data.
+`record_order` first calls `POST /v1/metrics/report` for `checkout.completed`. Once that write is accepted, it hands four related points to `POST /v1/metrics/batch`: fulfillment state, receipt issuance, item count, and order value. A customer update is returned only after both steps succeed.
 
-The split is deliberate. Checkout volume is useful as an immediate counter. The downstream facts belong together because they describe one order snapshot. Stable keys derived from `order_id` identify both writes when a rate-limited request is retried. Dashboards lied about success; the idempotency key told the truth.
+The split is deliberate. Checkout volume is useful as an immediate counter. The downstream facts belong together because they describe one order snapshot. Stable keys derived from `order_id` identify both writes when a rate-limited request is retried.
 
-The gotcha is gauge meaning: `fulfillment.shipped` is `1` only for a shipped order and `0` while processing. Do not increment it like a counter. We once got woken by a false positive because someone treated it as a cumulative sum.
+The gotcha is gauge meaning: `fulfillment.shipped` is `1` only for a shipped order and `0` while processing. Do not increment it like a counter.
 
 ## Check the business decision
 
@@ -39,7 +39,7 @@ The focused test submits `ord-42` with three items and `fulfillment: shipped`. I
 cargo test --offline
 ```
 
-The executable is intentionally a small HTTP boundary. Put authentication and persistence in the surrounding commerce service; this repository owns the metric handoff and client response mapping. If a page fired about missing metrics, it wasn't this layer's fault.
+The executable is intentionally a small HTTP boundary. Put authentication and persistence in the surrounding commerce service; this repository owns the metric handoff and client response mapping.
 
 ## License
 
